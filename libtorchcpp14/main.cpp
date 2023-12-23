@@ -5,6 +5,8 @@
 
 using namespace std;
 
+vector<double> matrixTToEuler(vector<vector<double>>& T);
+
 class Detector {
 public:
 	/***
@@ -110,7 +112,7 @@ int maintest()
 }
 
 
-int main()
+int main_4gan()
 {
 	torch::DeviceType device_type;
 	if (torch::cuda::is_available()) {
@@ -378,4 +380,340 @@ maxTurn = prismatics.size();
 	//std::cout << "平均耗时（毫秒）:" << (time2 - time1) / 500 << std::endl;
 
 	return 0;
+}
+
+// 计算四杆机构（新）
+int main() {
+	torch::DeviceType device_type;
+	if (torch::cuda::is_available()) {
+		std::cout << "CUDA available! Predicting on GPU." << std::endl;
+		device_type = torch::kCUDA;
+	}
+	else {
+		std::cout << "Predicting on CPU." << std::endl;
+		device_type = torch::kCPU;
+	}
+	//调试好后注释掉
+	//device_type = torch::kCPU;
+	torch::Device device(device_type);
+
+	//Init model
+	std::string model_pb = "C:/Users/dell/Desktop/simulatefloder/loopEuler/dataset_1113/b3_network_30_5.pt";
+	auto module = torch::jit::load(model_pb, device);
+	module.to(at::kCUDA);
+
+	std::ifstream csv_data("C:/Users/dell/Desktop/simulatefloder/loopEuler/Train_1113/Result.csv", std::ios::in);
+	std::string line;
+
+	if (!csv_data.is_open())
+	{
+		std::cout << "Error: opening file fail" << std::endl;
+		std::exit(1);
+	}
+
+	std::istringstream sin;         //将整行字符串line读入到字符串istringstream中
+	std::string word;
+
+	vector<vector<float>> Fills;
+
+	string input1 = "\"prismatic.s\"";
+	string input2 = "\"prismatic.v\"";
+
+	map<int, int> IdxToFill;
+
+	// 读取标题行
+	std::getline(csv_data, line);
+	sin.clear();
+	sin.str(line);
+	int nowidx = 0;
+	while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+	{
+		if (word == input1) {
+			IdxToFill[nowidx] = 0;
+		}
+		else if (word == input2) {
+			IdxToFill[nowidx] = 1;
+		}
+		nowidx++;
+	}
+
+	// 读取数据
+	while (std::getline(csv_data, line))
+	{
+		sin.clear();
+		sin.str(line);
+		int nowidx = 0;
+		vector<float> nowfill(2, 0.0);
+		while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+		{
+			if (IdxToFill.count(nowidx)) {
+				nowfill[IdxToFill[nowidx]] = atof(word.c_str());
+			}
+			nowidx++;
+		}
+		Fills.push_back(nowfill);
+	}
+	csv_data.close();
+
+
+	int nowTurn = 0;
+	int maxTurn = Fills.size();
+
+
+	while (nowTurn < maxTurn) {
+		std::vector<torch::jit::IValue> inputs;
+		vector<float> inputvec = { Fills[nowTurn][0], Fills[nowTurn][1] };
+		inputs.push_back(torch::from_blob(inputvec.data(), 2, torch::kFloat).to(at::kCUDA));
+
+
+		// Execute the model and turn its output into a tensor.
+		auto o = module.forward(inputs);
+		at::Tensor output = o.toTensor();
+		// cout << output << endl;
+
+		// Tensor张量转vector数组
+		// 要转到CPU上，不转就报错
+		at::Tensor t = output.toType(torch::kFloat).clone().to(at::kCPU);
+		std::vector<float> outputvec(t.data_ptr<float>(), t.data_ptr<float>() + t.numel());
+		cout << outputvec[5] << "\n";
+		nowTurn++;
+	}
+
+	return 0;
+}
+
+
+int main_robot6()
+{
+	torch::DeviceType device_type;
+	if (torch::cuda::is_available()) {
+		std::cout << "CUDA available! Predicting on GPU." << std::endl;
+		device_type = torch::kCUDA;
+	}
+	else {
+		std::cout << "Predicting on CPU." << std::endl;
+		device_type = torch::kCPU;
+	}
+	//调试好后注释掉
+	//device_type = torch::kCPU;
+	torch::Device device(device_type);
+
+	//Init model
+	std::string model_pb = "C:/Users/dell/Desktop/simulatefloder/robotnn1222/dataset/neural_network_b61_90_10000.pt";
+	auto module = torch::jit::load(model_pb, device);
+	module.to(at::kCUDA);
+
+	std::ifstream csv_data("C:/Users/dell/Desktop/simulatefloder/robotnn0426/Train/Result.csv", std::ios::in);
+	std::string line;
+
+	if (!csv_data.is_open())
+	{
+		std::cout << "Error: opening file fail" << std::endl;
+		std::exit(1);
+	}
+
+	std::istringstream sin;         //将整行字符串line读入到字符串istringstream中
+	std::string word;
+
+	vector<vector<float>> Fills;
+
+	string input1 = "\"revolute_fit1.phi\"";
+	string input2 = "\"revolute_fit2.phi\"";
+	string input3 = "\"revolute_fit3.phi\"";
+	string input4 = "\"revolute_fit4.phi\"";
+	string input5 = "\"revolute_fit5.phi\"";
+	string input6 = "\"revolute_fit6.phi\"";
+
+	map<int, int> IdxToFill;
+
+	// 读取标题行
+	std::getline(csv_data, line);
+	sin.clear();
+	sin.str(line);
+	int nowidx = 0;
+	while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+	{
+		if (word == input1) {
+			IdxToFill[nowidx] = 0;
+		}
+		else if (word == input2) {
+			IdxToFill[nowidx] = 1;
+		}
+		else if (word == input3) {
+			IdxToFill[nowidx] = 2;
+		}
+		else if (word == input4) {
+			IdxToFill[nowidx] = 3;
+		}
+		else if (word == input5) {
+			IdxToFill[nowidx] = 4;
+		}
+		else if (word == input6) {
+			IdxToFill[nowidx] = 5;
+		}
+		nowidx++;
+	}
+
+	// 读取数据
+	while (std::getline(csv_data, line))
+	{
+		sin.clear();
+		sin.str(line);
+		int nowidx = 0;
+		vector<float> nowfill(6, 0.0);
+		while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+		{
+			if (IdxToFill.count(nowidx)) {
+				nowfill[IdxToFill[nowidx]] = atof(word.c_str());
+			}
+			nowidx++;
+		}
+		Fills.push_back(nowfill);
+	}
+	csv_data.close();
+	
+
+	int nowTurn = 0;
+	int maxTurn = Fills.size();
+
+
+	while (nowTurn < maxTurn) {
+		// Create a vector of inputs.
+		std::vector<torch::jit::IValue> inputs;
+		vector<float> inputvec = { Fills[nowTurn][0], Fills[nowTurn][1], Fills[nowTurn][2], Fills[nowTurn][3], Fills[nowTurn][4], Fills[nowTurn][5] };
+		//for (int i = 0; i < inputvec.size(); i++) {
+		//	cout << inputvec[i] << " ";
+		//}
+		//cout << endl;
+		inputs.push_back(torch::from_blob(inputvec.data(), 6, torch::kFloat).to(at::kCUDA));
+
+
+		// Execute the model and turn its output into a tensor.
+		auto o = module.forward(inputs);
+		at::Tensor output = o.toTensor();
+		// cout << output << endl;
+
+		// Tensor张量转vector数组
+		// 要转到CPU上，不转就报错
+		at::Tensor t = output.toType(torch::kFloat).clone().to(at::kCPU);
+		std::vector<float> outputvec(t.data_ptr<float>(), t.data_ptr<float>() + t.numel());
+		cout << outputvec[5] << "\n";
+		nowTurn++;
+	}
+
+	//std::cout << "平均耗时（毫秒）:" << (time2 - time1) / 500 << std::endl;
+
+	return 0;
+}
+
+
+int computeEulerFromFile()
+{
+	std::ifstream csv_data("C:/Users/dell/Desktop/simulatefloder/robotnn0426/Result_matrix.csv", std::ios::in);
+	std::string line;
+
+	if (!csv_data.is_open())
+	{
+		std::cout << "Error: opening file fail" << std::endl;
+		std::exit(1);
+	}
+
+	std::istringstream sin;         //将整行字符串line读入到字符串istringstream中
+	std::string word;
+
+	vector<vector<vector<double>>> Fills;
+
+	string input1 = "b61.frame_a.R.T[11]";
+	string input2 = "b61.frame_a.R.T[12]";
+	string input3 = "b61.frame_a.R.T[13]";
+	string input4 = "b61.frame_a.R.T[21]";
+	string input5 = "b61.frame_a.R.T[22]";
+	string input6 = "b61.frame_a.R.T[23]";
+	string input7 = "b61.frame_a.R.T[31]";
+	string input8 = "b61.frame_a.R.T[32]";
+	string input9 = "b61.frame_a.R.T[33]";
+
+	map<int, int> IdxToFill;
+
+	// 读取标题行
+	std::getline(csv_data, line);
+	sin.clear();
+	sin.str(line);
+	int nowidx = 0;
+	while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+	{
+		if (word == input1) {
+			IdxToFill[nowidx] = 0;
+		}
+		else if (word == input2) {
+			IdxToFill[nowidx] = 1;
+		}
+		else if (word == input3) {
+			IdxToFill[nowidx] = 2;
+		}
+		else if (word == input4) {
+			IdxToFill[nowidx] = 3;
+		}
+		else if (word == input5) {
+			IdxToFill[nowidx] = 4;
+		}
+		else if (word == input6) {
+			IdxToFill[nowidx] = 5;
+		}
+		else if (word == input7) {
+			IdxToFill[nowidx] = 6;
+		}
+		else if (word == input8) {
+			IdxToFill[nowidx] = 7;
+		}
+		else if (word == input9) {
+			IdxToFill[nowidx] = 8;
+		}
+		nowidx++;
+	}
+
+	// 读取数据
+	while (std::getline(csv_data, line))
+	{
+		sin.clear();
+		sin.str(line);
+		int nowidx = 0;
+		vector<vector<double>> nowfill(4, vector<double>(4, 0.0));
+		while (std::getline(sin, word, ',')) //将字符串流sin中的字符读到field字符串中，以逗号为分隔符
+		{
+			if (IdxToFill.count(nowidx)) {
+				int idx = IdxToFill[nowidx];
+				int row = (idx / 3) + 1;
+				int col = (idx % 3) + 1;
+				nowfill[row][col] = stod(word.c_str());
+			}
+			nowidx++;
+		}
+		Fills.push_back(nowfill);
+	}
+	csv_data.close();
+
+
+	for (int i = 0; i < 3; i++) {
+		int nowTurn = 0;
+		int maxTurn = Fills.size();
+
+		while (nowTurn < maxTurn) {
+			vector<double> nowans = matrixTToEuler(Fills[nowTurn]);
+			cout << nowans[i] << "\n";
+			nowTurn++;
+		}
+		cout << "-------------------------------\n";
+	}
+
+	return 0;
+}
+
+
+vector<double> matrixTToEuler(vector<vector<double>>& T) {
+	vector<double> euler(3, 0.0);
+	euler[0] = atan2(-1 * T[3][1], sqrt(T[1][1] * T[1][1] + T[2][1] * T[2][1]));
+	euler[1] = atan2(T[2][1] / cos(euler[0]), T[1][1] / cos(euler[0]));
+	euler[2] = atan2(T[3][2] / cos(euler[0]), T[3][3] / cos(euler[0]));
+	return euler;
 }
